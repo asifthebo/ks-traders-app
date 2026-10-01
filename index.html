@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Apple Hair Colour - KS Traders</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    @media print {
+      header, .tab-btn, #exportControls, #chartsContainer, #kpiContainer, #inventoryCards, #stockInForm, #saleForm {
+        display: none !important;
+      }
+      #tab-salesLog {
+        display: block !important;
+      }
+      body {
+        background: white !important;
+        color: black !important;
+      }
+      table {
+        width: 100% !important;
+        border: 1px solid #cbd5e1 !important;
+      }
+      th, td {
+        border: 1px solid #cbd5e1 !important;
+        padding: 6px !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+  <!-- Top Bar -->
+  <header class="bg-indigo-700 text-white p-4 shadow-md sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
+      <h1 class="text-xl font-bold tracking-wide">🍏 Apple Hair Colour — KS Traders</h1>
+      <div class="flex items-center space-x-2 text-sm bg-indigo-800 px-3 py-1.5 rounded-lg border border-indigo-600">
+        <label for="partnerSelect" class="font-medium">Active Partner:</label>
+        <select id="partnerSelect" class="bg-indigo-900 text-white rounded px-2 py-1 outline-none text-sm">
+          <option value="Partner 1">Partner 1</option>
+          <option value="Partner 2">Partner 2</option>
+        </select>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
+    <!-- Tabs -->
+    <div class="flex border-b border-slate-200 gap-2 overflow-x-auto pb-1">
+      <button onclick="switchTab('inventory')" id="tabBtn-inventory" class="tab-btn px-4 py-2 font-medium border-b-2 border-indigo-600 text-indigo-600 whitespace-nowrap">Inventory</button>
+      <button onclick="switchTab('newSale')" id="tabBtn-newSale" class="tab-btn px-4 py-2 font-medium text-slate-500 hover:text-indigo-600 whitespace-nowrap">Record Sale</button>
+      <button onclick="switchTab('stockIn')" id="tabBtn-stockIn" class="tab-btn px-4 py-2 font-medium text-slate-500 hover:text-indigo-600 whitespace-nowrap">Stock In</button>
+      <button onclick="switchTab('salesLog')" id="tabBtn-salesLog" class="tab-btn px-4 py-2 font-medium text-slate-500 hover:text-indigo-600 whitespace-nowrap">Sales History & Analytics</button>
+    </div>
+
+    <!-- 1. Inventory View -->
+    <section id="tab-inventory" class="tab-content block">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold text-slate-800">Current Stock by Shade</h2>
+        <button onclick="loadInventory()" class="text-sm bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded transition">↻ Refresh</button>
+      </div>
+      <div id="inventoryCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="p-6 text-center text-slate-400">Loading stock data...</div>
+      </div>
+    </section>
+
+    <!-- 2. Record Sale Form -->
+    <section id="tab-newSale" class="tab-content hidden">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 max-w-xl mx-auto">
+        <h2 class="text-lg font-bold mb-4 text-slate-800">Record Customer Sale (Stock Out)</h2>
+        <form id="saleForm" onsubmit="submitSale(event)" class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold mb-1">Customer Full Name *</label>
+            <input type="text" id="custName" required class="w-full border rounded-lg p-2.5 outline-indigo-600" placeholder="e.g. Tariq Mehmood" />
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-semibold mb-1">Phone Number *</label>
+              <input type="tel" id="custPhone" required class="w-full border rounded-lg p-2.5 outline-indigo-600" placeholder="0300-1234567" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-1">Email <span class="text-xs font-normal text-slate-400">(Optional)</span></label>
+              <input type="email" id="custEmail" class="w-full border rounded-lg p-2.5 outline-indigo-600" placeholder="name@email.com" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">Delivery Address</label>
+            <textarea id="custAddress" rows="2" class="w-full border rounded-lg p-2.5 outline-indigo-600" placeholder="Full delivery address & city"></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">Select Shade *</label>
+            <select id="saleProduct" required onchange="updateDefaultPrice()" class="w-full border rounded-lg p-2.5 outline-indigo-600"></select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-semibold mb-1">Quantity *</label>
+              <input type="number" id="saleQty" min="1" value="1" required class="w-full border rounded-lg p-2.5 outline-indigo-600" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-1">Sold Price (per unit) *</label>
+              <input type="number" step="0.01" id="salePrice" required class="w-full border rounded-lg p-2.5 outline-indigo-600" />
+            </div>
+          </div>
+          <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition">Complete Sale & Decrement Stock</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- 3. Stock In Form -->
+    <section id="tab-stockIn" class="tab-content hidden">
+      <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 max-w-xl mx-auto">
+        <h2 class="text-lg font-bold mb-4 text-slate-800">Add Incoming Stock (Stock In)</h2>
+        <form id="stockInForm" onsubmit="submitStockIn(event)" class="space-y-4">
+          <div>
+            <label class="block text-sm font-semibold mb-1">Select Shade *</label>
+            <select id="stockInProduct" required class="w-full border rounded-lg p-2.5 outline-indigo-600"></select>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-semibold mb-1">Quantity Received *</label>
+              <input type="number" id="stockInQty" min="1" value="144" required class="w-full border rounded-lg p-2.5 outline-indigo-600" placeholder="e.g. 144" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold mb-1">Cost Per Unit *</label>
+              <input type="number" step="0.01" id="stockInCost" required class="w-full border rounded-lg p-2.5 outline-indigo-600" placeholder="e.g. 450" />
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1">Supplier / Batch Note</label>
+            <input type="text" id="stockInNotes" class="w-full border rounded-lg p-2.5 outline-indigo-600" placeholder="e.g. 24 packs x 6 units batch" />
+          </div>
+          <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg transition">Add to Stock</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- 4. Sales Orders Log & Analytics -->
+    <section id="tab-salesLog" class="tab-content hidden space-y-6">
+      <!-- KPI Stats Summary -->
+      <div id="kpiContainer" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p class="text-xs uppercase font-semibold text-slate-500">Total Units Sold</p>
+          <p id="statUnits" class="text-2xl font-bold text-slate-800 mt-1">0</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p class="text-xs uppercase font-semibold text-slate-500">Total Revenue</p>
+          <p id="statRevenue" class="text-2xl font-bold text-indigo-600 mt-1">Rs. 0</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p class="text-xs uppercase font-semibold text-slate-500">Total Inventory Cost</p>
+          <p id="statCost" class="text-2xl font-bold text-slate-700 mt-1">Rs. 0</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <p class="text-xs uppercase font-semibold text-slate-500">Est. Gross Profit</p>
+          <p id="statProfit" class="text-2xl font-bold text-emerald-600 mt-1">Rs. 0</p>
+        </div>
+      </div>
+
+      <!-- Charts Row -->
+      <div id="chartsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-700 mb-3">Units Sold by Shade</h3>
+          <div class="h-64">
+            <canvas id="salesBarChart"></canvas>
+          </div>
+        </div>
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+          <h3 class="text-sm font-bold text-slate-700 mb-3">Current Stock Distribution</h3>
+          <div class="h-64 flex justify-center">
+            <canvas id="stockPieChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Orders Table & Export Actions -->
+      <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-slate-200">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
+          <h2 class="text-lg font-bold text-slate-800">Customer Orders History</h2>
+          
+          <div id="exportControls" class="flex flex-wrap items-center gap-2">
+            <button onclick="exportToCSV()" class="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg transition flex items-center gap-1 shadow-sm">
+              📥 Export to Excel (CSV)
+            </button>
+            <button onclick="printOrExportPDF()" class="text-xs font-semibold bg-slate-700 hover:bg-slate-800 text-white px-3 py-2 rounded-lg transition flex items-center gap-1 shadow-sm">
+              📄 Print / Save PDF
+            </button>
+            <button onclick="loadSalesAndAnalytics()" class="text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-lg transition">
+              ↻ Refresh
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b bg-slate-50 text-slate-600 uppercase text-xs">
+                <th class="p-3">Date</th>
+                <th class="p-3">Customer</th>
+                <th class="p-3">Phone</th>
+                <th class="p-3">Shade</th>
+                <th class="p-3">Qty</th>
+                <th class="p-3">Price</th>
+                <th class="p-3">Total</th>
+                <th class="p-3">Address</th>
+                <th class="p-3">Handled By</th>
+              </tr>
+            </thead>
+            <tbody id="salesTableBody" class="divide-y divide-slate-100">
+              <tr><td colspan="9" class="p-4 text-center text-slate-400">Loading sales records...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const SUPABASE_URL = "https://wqgfghlrzssdwbebuzjs.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_61GbP9Y6gWv9GzDzOZXYhA_TGunksPM";
+    const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let productsList = [];
+    let allSalesData = [];
+    let barChartInstance = null;
+    let pieChartInstance = null;
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('border-b-2', 'border-indigo-600', 'text-indigo-600');
+        el.classList.add('text-slate-500');
+      });
+      document.getElementById('tab-' + tab).classList.remove('hidden');
+      const activeBtn = document.getElementById('tabBtn-' + tab);
+      activeBtn.classList.add('border-b-2', 'border-indigo-600', 'text-indigo-600');
+      activeBtn.classList.remove('text-slate-500');
+      if (tab === 'inventory') loadInventory();
+      if (tab === 'salesLog') loadSalesAndAnalytics();
+    }
+
+    async function loadInventory() {
+      const { data, error } = await client.from('products').select('*').order('id');
+      if (error) return alert("Error loading stock: " + error.message);
+      productsList = data;
+      renderProductsDropdowns();
+
+      const container = document.getElementById('inventoryCards');
+      if (!data || data.length === 0) {
+        container.innerHTML = `<div class="p-6 text-center text-slate-400">No products found.</div>`;
+        return;
+      }
+
+      container.innerHTML = data.map(item => `
+        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div>
+            <div class="flex justify-between items-start mb-2">
+              <h3 class="font-bold text-slate-800 text-sm leading-snug">${item.shade_name}</h3>
+              <span class="px-2 py-0.5 text-xs font-semibold rounded ${item.current_stock <= 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}">
+                ${item.current_stock <= 0 ? 'Out of Stock' : 'In Stock'}
+              </span>
+            </div>
+            <p class="text-3xl font-extrabold my-2 text-indigo-700">${item.current_stock} <span class="text-sm font-normal text-slate-500">units</span></p>
+          </div>
+          <div class="border-t pt-3 mt-3 text-xs text-slate-500 flex justify-between">
+            <span>Cost: Rs. ${item.cost_price}</span>
+            <span>Retail: Rs. ${item.default_sale_price}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderProductsDropdowns() {
+      const saleSelect = document.getElementById('saleProduct');
+      const stockInSelect = document.getElementById('stockInProduct');
+      const safeOptions = productsList.map(p => `<option value="${p.id}">${p.shade_name} (Current Stock: ${p.current_stock})</option>`).join('');
+      saleSelect.innerHTML = safeOptions;
+      stockInSelect.innerHTML = safeOptions;
+      updateDefaultPrice();
+    }
+
+    function updateDefaultPrice() {
+      const selectedId = parseInt(document.getElementById('saleProduct').value);
+      const prod = productsList.find(p => p.id === selectedId);
+      if (prod) document.getElementById('salePrice').value = prod.default_sale_price;
+    }
+
+    async function submitSale(e) {
+      e.preventDefault();
+      const partner = document.getElementById('partnerSelect').value;
+      const prodId = parseInt(document.getElementById('saleProduct').value);
+      const prod = productsList.find(p => p.id === prodId);
+      const qty = parseInt(document.getElementById('saleQty').value);
+
+      if (prod.current_stock < qty) {
+        if (!confirm(`Notice: Only ${prod.current_stock} units currently marked in stock. Confirm recording this sale anyway?`)) {
+          return;
+        }
+      }
+
+      const price = parseFloat(document.getElementById('salePrice').value);
+      const name = document.getElementById('custName').value;
+      const phone = document.getElementById('custPhone').value;
+      const email = document.getElementById('custEmail').value || null;
+      const address = document.getElementById('custAddress').value || null;
+
+      const { data: custData } = await client.from('customers').insert([{
+        name, phone, email, address
+      }]).select().single();
+
+      const { error: saleErr } = await client.from('sales_orders').insert([{
+        customer_id: custData ? custData.id : null,
+        customer_name: name,
+        customer_phone: phone,
+        customer_email: email,
+        customer_address: address,
+        product_id: prod.id,
+        shade_name: prod.shade_name,
+        quantity: qty,
+        sold_price_per_unit: price,
+        total_amount: qty * price,
+        sold_by: partner
+      }]);
+
+      if (saleErr) return alert("Failed to record sale: " + saleErr.message);
+
+      alert("Sale logged successfully!");
+      document.getElementById('saleForm').reset();
+      switchTab('inventory');
+    }
+
+    async function submitStockIn(e) {
+      e.preventDefault();
+      const partner = document.getElementById('partnerSelect').value;
+      const prodId = parseInt(document.getElementById('stockInProduct').value);
+      const qty = parseInt(document.getElementById('stockInQty').value);
+      const cost = parseFloat(document.getElementById('stockInCost').value);
+      const notes = document.getElementById('stockInNotes').value;
+
+      const { error } = await client.from('stock_in_log').insert([{
+        product_id: prodId,
+        quantity: qty,
+        unit_cost: cost,
+        notes: notes,
+        added_by: partner
+      }]);
+
+      if (error) return alert("Failed to add stock: " + error.message);
+
+      alert("Stock successfully added!");
+      document.getElementById('stockInForm').reset();
+      switchTab('inventory');
+    }
+
+    async function loadSalesAndAnalytics() {
+      const { data: sales, error: salesErr } = await client.from('sales_orders').select('*').order('id', { ascending: false });
+      if (salesErr) return alert("Error loading sales: " + salesErr.message);
+
+      allSalesData = sales || [];
+
+      const { data: stockIn } = await client.from('stock_in_log').select('*');
+
+      let totalUnits = 0;
+      let totalRevenue = 0;
+      const shadeSalesMap = {};
+
+      allSalesData.forEach(s => {
+        totalUnits += s.quantity;
+        totalRevenue += parseFloat(s.total_amount);
+        shadeSalesMap[s.shade_name] = (shadeSalesMap[s.shade_name] || 0) + s.quantity;
+      });
+
+      let totalCost = 0;
+      if (stockIn) {
+        stockIn.forEach(item => {
+          totalCost += item.quantity * parseFloat(item.unit_cost);
+        });
+      }
+
+      document.getElementById('statUnits').innerText = totalUnits;
+      document.getElementById('statRevenue').innerText = 'Rs. ' + totalRevenue.toLocaleString();
+      document.getElementById('statCost').innerText = 'Rs. ' + totalCost.toLocaleString();
+      document.getElementById('statProfit').innerText = 'Rs. ' + (totalRevenue - totalCost).toLocaleString();
+
+      const tbody = document.getElementById('salesTableBody');
+      if (allSalesData.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="p-4 text-center text-slate-400">No sales recorded yet.</td></tr>`;
+      } else {
+        tbody.innerHTML = allSalesData.map(s => {
+          const dateStr = s.created_at ? new Date(s.created_at).toLocaleDateString() : '-';
+          return `
+            <tr class="hover:bg-slate-50">
+              <td class="p-3 text-xs text-slate-500">${dateStr}</td>
+              <td class="p-3 font-medium">${s.customer_name}</td>
+              <td class="p-3 text-slate-600">${s.customer_phone}</td>
+              <td class="p-3">${s.shade_name}</td>
+              <td class="p-3 font-semibold">${s.quantity}</td>
+              <td class="p-3">Rs. ${s.sold_price_per_unit}</td>
+              <td class="p-3 font-bold text-emerald-700">Rs. ${s.total_amount}</td>
+              <td class="p-3 text-xs text-slate-500 max-w-xs truncate">${s.customer_address || '-'}</td>
+              <td class="p-3 text-xs font-semibold text-indigo-700">${s.sold_by}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      // Bar Chart
+      const barLabels = Object.keys(shadeSalesMap);
+      const barValues = Object.values(shadeSalesMap);
+
+      if (barChartInstance) barChartInstance.destroy();
+      const ctxBar = document.getElementById('salesBarChart').getContext('2d');
+      barChartInstance = new Chart(ctxBar, {
+        type: 'bar',
+        data: {
+          labels: barLabels.length ? barLabels : ['No sales'],
+          datasets: [{
+            label: 'Units Sold',
+            data: barValues.length ? barValues : [0],
+            backgroundColor: '#4f46e5',
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      // Donut Chart
+      const pieLabels = productsList.map(p => p.shade_name);
+      const pieValues = productsList.map(p => p.current_stock);
+
+      if (pieChartInstance) pieChartInstance.destroy();
+      const ctxPie = document.getElementById('stockPieChart').getContext('2d');
+      pieChartInstance = new Chart(ctxPie, {
+        type: 'doughnut',
+        data: {
+          labels: pieLabels,
+          datasets: [{
+            data: pieValues,
+            backgroundColor: ['#1e293b', '#78350f', '#b45309', '#881337']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
+      });
+    }
+
+    // CSV / Excel Export Function
+    function exportToCSV() {
+      if (!allSalesData || allSalesData.length === 0) {
+        return alert("No sales records available to export!");
+      }
+
+      const headers = ["Order ID", "Date", "Customer Name", "Phone", "Email", "Delivery Address", "Shade", "Quantity", "Unit Price", "Total Amount", "Handled By"];
+      
+      const rows = allSalesData.map(s => [
+        s.id,
+        s.created_at ? new Date(s.created_at).toLocaleDateString() : '',
+        `"${(s.customer_name || '').replace(/"/g, '""')}"`,
+        `"${(s.customer_phone || '').replace(/"/g, '""')}"`,
+        `"${(s.customer_email || '').replace(/"/g, '""')}"`,
+        `"${(s.customer_address || '').replace(/"/g, '""')}"`,
+        `"${(s.shade_name || '').replace(/"/g, '""')}"`,
+        s.quantity,
+        s.sold_price_per_unit,
+        s.total_amount,
+        `"${(s.sold_by || '').replace(/"/g, '""')}"`
+      ]);
+
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `Apple_Hair_Colour_Sales_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // PDF / Print Function
+    function printOrExportPDF() {
+      if (!allSalesData || allSalesData.length === 0) {
+        return alert("No sales records available to print!");
+      }
+      window.print();
+    }
+
+    loadInventory();
+  </script>
+</body>
+</html>
